@@ -1,30 +1,28 @@
+import pathlib
 from pathlib import Path
 from torch.utils.data import Dataset
 from torch.utils.data import random_split
+from transformers import HfArgumentParser
+from transformers import TrainingArguments
+from transformers import AutoModelForCausalLM
+from transformers import AutoTokenizer
 from typing import List, Dict, Union
 from typing import Any, TypeVar
 
-Pathable: Union[str, pathlib.Path]
-# Some predefined config gile should exist
-# But i am not exactyl sure if it should be connected to every aspect 
-# of finetuning process. 
+Pathable=  Union[str, pathlib.Path]
 
-# We should assume that model should be defined only by  
-# only by using argument parser.
-# We do not have to add tool just after
-# the loading process, it can be done later.
 
 def load_model(name: Pathable):
-    model = AutoModelForCausalLM.from_pretrained(name)
+    model = AutoModelForCausalLM.from_pretrained(name, local_files_only = True if "checkpoint" in name else False)
     return model
 
 def load_tokenizer(name: Pathable):
-    tokenizer = AutoTokenizer.from_pretrained()
+    tokenizer = AutoTokenizer.from_pretrained(name)
     if tokenizer.pad_token is None:
         tokenizer.pad_token = '[PAD]'
     return tokenizer
 
-def generate_prompt(instruction: str, input: str, response: str, starter: str  =  ):
+def generate_prompt(instruction: str, input: str, response: str, starter: str  = "" ):
     if input:
         return f"""Na podstawie instrukcji oraz kontekstu przekaż odpowiedź na zadane pytanie.
 
