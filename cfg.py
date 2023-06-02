@@ -3,6 +3,20 @@ from typing import List
 from typing import Dict, Union
 from typing import Any, TypeVar
 
+
+
+class TrainConfig:
+    
+    n_epochs: int = 25
+    logging_steps: int = 5000
+    train_batch_size: int = 8
+    eval_batch_size: int = 2
+    warmup_steps: int = 2
+    weight_decay: float = 0.01
+    learning_rate: float = 1e-5
+    logging_dir: str = './logs'
+    save_total_limit: int = 2
+
 class BasicConfig:
     dataset = 'alpaca_dolly.csv'
     model_name: str = 'EleutherAI/gpt-neo-125m'
