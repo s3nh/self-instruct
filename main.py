@@ -75,7 +75,7 @@ def main():
         data_collator= lambda data: {'input_ids': torch.stack([f[0] for f in data]),
                                     'attention_mask': torch.stack([f[1] for f in data]),
                                     'labels': torch.stack([f[0] for f in data])})
-    trainer.train(resume_from_checkpoint=True if checkpoint in model_name else False)
+    trainer.train(resume_from_checkpoint=True if 'checkpoint' in model_name else False)
                                       
 
 if __name__ == "__main__":
