@@ -41,12 +41,12 @@ def generate_prompt(instruction, input=None):
 
 ### Response:"""
 
-model= load_model(name = 's3nh/pythia-410m-70k-steps-self-instruct-polish')
-tokenizer = load_tokenizer(name = 's3nh/pythia-410m-70k-steps-self-instruct-polish')
+# model= load_model(name = 's3nh/pythia-410m-70k-steps-self-instruct-polish')
+# tokenizer = load_tokenizer(name = 's3nh/pythia-410m-70k-steps-self-instruct-polish')
 generation_config = create_generator()
 
 
-def evaluate(instruction, input=None):
+def evaluate(instruction, input, model, tokenizer):
     prompt = generate_prompt(instruction, input)
     inputs = tokenizer(prompt, return_tensors="pt")
     input_ids = inputs["input_ids"]
@@ -63,19 +63,20 @@ def evaluate(instruction, input=None):
         result.append( output.split("### Response:")[1].strip())
     return ' '.join(el for el in result)            
 
-def inference(text, input):
-    output = evaluate(instruction = text, input = input)
+def inference(model_name, text, input):
+    model = load_model(model_name)
+    tokenizer = load_tokenizer(model_name)
+    output = evaluate(instruction = text, input = input, model = model, tokenizer = tokenizer)
     return output
 
 def choose_model(name):
-
     return load_model(name), load_tokenizer(name)
-
-model, tokenizer = gr.Interface(choose_model, [gr.inputs.Dropdown(["s3nh/pythia-1.4b-deduped-16k-steps-self-instruct-polish", "s3nh/pythia-1.4b-deduped-16k-steps-self-instruct-polish"]), "text"], "text")
 
 io = gr.Interface(
     inference, 
-    inputs = [gr.Textbox(
+    inputs = [
+    gr.Dropdown(["s3nh/pythia-1.4b-deduped-16k-steps-self-instruct-polish", "s3nh/pythia-410m-91k-steps-self-instruct-polish", "s3nh/tiny-gpt2-instruct-polish"]),
+    gr.Textbox(
         lines = 3,
         max_lines = 10, 
         placeholder = "Add question here", 
@@ -92,4 +93,5 @@ io = gr.Interface(
     outputs = [gr.Textbox(lines = 1, label = 'Pythia410m', interactive = False)],
     cache_examples = False, 
 )
-io.launch()
+
+io.launch(debug = True)
