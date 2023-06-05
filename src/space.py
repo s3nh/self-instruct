@@ -57,34 +57,39 @@ def evaluate(instruction, input=None):
         output_scores=True,
         max_new_tokens=256
     )
+    result = []
     for s in generation_output.sequences:
         output = tokenizer.decode(s)
-        print("Response:", output.split("### Response:")[1].strip())
+        result.append( output.split("### Response:")[1].strip())
+    return ' '.join(el for el in result)            
 
-
-def inference(text):
+def inference(text, input):
     output = evaluate(instruction = text, input = input)
     return output
 
+def choose_model(name):
+
+    return load_model(name), load_tokenizer(name)
+
+model, tokenizer = gr.Interface(choose_model, [gr.inputs.Dropdown(["s3nh/pythia-1.4b-deduped-16k-steps-self-instruct-polish", "s3nh/pythia-1.4b-deduped-16k-steps-self-instruct-polish"]), "text"], "text")
+
 io = gr.Interface(
     inference, 
-    gr.Textbox(
-        lines = 3, max_lines = 10, 
+    inputs = [gr.Textbox(
+        lines = 3,
+        max_lines = 10, 
         placeholder = "Add question here", 
         interactive = True, 
         show_label = False
     ), 
-    # gr.Textbox(
-    #     lines = 3, 
-    #     max_lines = 25, 
-    #     placeholder = "add context here", 
-    #     interactive = True, 
-    #     show_label  = False
-    # ), 
-    outputs = gr.Textbox(lines = 2, label = 'Pythia410m output', interactive = False),
+    gr.Textbox(
+        lines = 3, 
+        max_lines = 10, 
+        placeholder = "Add context here", 
+        interactive  = True, 
+        show_label = False
+    )],
+    outputs = [gr.Textbox(lines = 1, label = 'Pythia410m', interactive = False)],
     cache_examples = False, 
 )
 io.launch()
-
-
-#gr.Interface.load("models/s3nh/pythia-410m-70k-steps-self-instruct-polish").launch()
