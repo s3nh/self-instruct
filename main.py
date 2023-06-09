@@ -14,14 +14,20 @@ from self_instruct.utils import parse_model_name
 from self_instruct.utils import load_model
 from self_instruct.utils import load_tokenizer
 from self_instruct.utils import create_outpath
+from self_instruct.utils import get_lora_config
+from self_instruct.utils import SavePeftModelCallback
 from self_instruct.dataset import InstructDataset
 
+from peft import PeftModel
+from peft import prepare_model_for_int8_training, LoraConfig, get_peft_model
 Pathable = Union[str, pathlib.Path]
+
+
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('-m', '--model', nargs="?", default="")
     parser.add_argument('-t', '--tokenizer', nargs="?", default="")
-    parser.add_argument('-l', '--lora',  nargs="?", default=False)
+    parser.add_argument('-l', '--lora',  nargs="?", default=True)
     args = parser.parse_args()
     return args
 
@@ -37,18 +43,31 @@ def split_data(dataset: torch.utils.data.Dataset, ratio: float = 0.9):
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
     return train_dataset, val_dataset
 
+
+#def load_in_8bit(name: str):
+
+
 def main():
     config = BasicConfig()
     trconfig = TrainConfig()
     args = get_args()
     model_name = args.model if args.model is not "" else config.model_name
     tokenizer_name = args.tokenizer if args.tokenizer is not "" else config.tokenizer_name
+    
     parsed_model_name = parse_model_name(model_name)
-    parsed_tokenizer_name = parse_model_name(tokenizer_name) 
-    model = load_model(model_name)
+    parsed_tokenizer_name = parse_model_name(tokenizer_name)
+    model = load_model(model_name, load_in_8bit=False)
     tokenizer = load_tokenizer(tokenizer_name)
     train_dataset, val_dataset = prepare_dataset(input_path = config.dataset, tokenizer = tokenizer, config = config)
-    
+    if args.lora:
+        lora_config = get_lora_config()
+        lora_config.inference_mode = False
+        model = load_model(model_name, load_in_8bit=True)
+        model = prepare_model_for_int8_training(model)
+        model = get_peft_model(model, lora_config)
+        model.config.use_cache = False
+
+        
     #Create output path
     output_path = create_outpath(model_name = model_name)
     
@@ -58,12 +77,14 @@ def main():
                                       logging_steps = trconfig.logging_steps, 
                                       per_device_train_batch_size = trconfig.train_batch_size, 
                                       per_device_eval_batch_size = trconfig.eval_batch_size, 
+                                      fp16 = trconfig.fp16,
                                       warmup_steps = trconfig.warmup_steps, 
                                       weight_decay = trconfig.weight_decay,
                                       learning_rate = trconfig.learning_rate, 
                                       logging_dir = trconfig.logging_dir, 
                                       save_total_limit = trconfig.save_total_limit, 
-                                      report_to = "wandb")
+                                      report_to = "wandb", 
+                                      )
                                       
     # Define trainer
         
@@ -74,7 +95,8 @@ def main():
         eval_dataset = val_dataset, 
         data_collator= lambda data: {'input_ids': torch.stack([f[0] for f in data]),
                                     'attention_mask': torch.stack([f[1] for f in data]),
-                                    'labels': torch.stack([f[0] for f in data])})
+                                    'labels': torch.stack([f[0] for f in data])},
+        callbacks = [SavePeftModelCallback(output_path = output_path)])
     trainer.train(resume_from_checkpoint=True if 'checkpoint' in model_name else False)
                                       
 
