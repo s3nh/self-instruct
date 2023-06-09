@@ -8,12 +8,16 @@ from transformers import AutoModelForCausalLM
 from transformers import AutoTokenizer
 from typing import List, Dict, Union
 from typing import Any, TypeVar
-
+from self_instruct.cfg import BasicConfig
 Pathable=  Union[str, pathlib.Path]
+from peft import PeftModel
+from peft import prepare_model_for_int8_training, LoraConfig, get_peft_model
+from transformers import Seq2SeqTrainer, TrainerCallback, TrainingArguments, TrainerState, TrainerControl
+from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 
 
-def load_model(name: Pathable):
-    model = AutoModelForCausalLM.from_pretrained(name, local_files_only = True if "checkpoint" in name else False)
+def load_model(name: Pathable, load_in_8bit: bool=True):
+    model = AutoModelForCausalLM.from_pretrained(name, local_files_only = True if "checkpoint" in name else False, load_in_8bit = True, device_map="auto")
     return model
 
 def load_tokenizer(name: Pathable):
@@ -66,3 +70,53 @@ def create_outpath(model_name) -> None:
     name: str = parse_model_name(model_name=model_name, ix = _ix)
     outpath = f"./result/{name}"
     return outpath
+
+
+def print_trainable_parameters(model):
+    """
+    Prints the number of trainable parameters in the model.
+    """
+    trainable_params = 0
+    all_param = 0
+    for _, param in model.named_parameters():
+        all_param += param.numel()
+        if param.requires_grad:
+            trainable_params += param.numel()
+    print(
+        f"trainable params: {trainable_params} || all params: {all_param} || trainable%: {100 * trainable_params / all_param}"
+    )
+    
+    
+
+def get_lora_config(config = BasicConfig()):
+    return LoraConfig(
+        r = config.lora_r, 
+        lora_alpha = config.lora_alpha, 
+        lora_dropout = config.lora_dropout, 
+        bias = config.bias, 
+        task_type = config.task_type
+    )
+
+
+
+#https://github.com/huggingface/peft/issues/286
+class SavePeftModelCallback(TrainerCallback):
+    def __init__(self, output_path: str):
+        self.output_path = output_path
+        
+    def on_save(
+        self,
+        args: TrainingArguments,
+        state: TrainerState,
+        control: TrainerControl,
+        **kwargs,
+    ):
+        checkpoint_folder = os.path.join(output_path, f"{PREFIX_CHECKPOINT_DIR}-{state.global_step}")
+
+        peft_model_path = os.path.join(checkpoint_folder, "adapter_model")
+        kwargs["model"].save_pretrained(peft_model_path)
+
+        pytorch_model_path = os.path.join(checkpoint_folder, "pytorch_model.bin")
+        if os.path.exists(pytorch_model_path):
+            os.remove(pytorch_model_path)
+        return control
